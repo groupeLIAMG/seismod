@@ -1,0 +1,14 @@
+ani.dat      # model,
+src.dat      # source,
+rcv.dat      # output,
+test_ani     # basename,
+1.500                     # time, seconds
+0.125                     # dt, milliseconds 
+2                         # check_model, compute phase velocity and attenuation, and store in NetCDF files if check_model==2
+1                         # abs,
+20                        # nl,
+6                         # kappa_max,
+0.00001                   # Rc,
+1                         # saveEnergy,
+1                         # plstr,
+0/2000/0/200              # EnergyROI,

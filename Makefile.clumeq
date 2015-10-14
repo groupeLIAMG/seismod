@@ -1,0 +1,44 @@
+#!/bin/csh
+#
+#
+#
+
+CC = icc
+COPTIONS = -O3 -xHOST -ipo -openmp -std=c99 -D_GNU_SOURCE
+CFLAGS = $(COPTIONS) -I$(HOME)/local/netcdf/include \
+-I$(HOME)/local/fftw/include
+
+LFLAGS = -L$(HOME)/local/netcdf/lib -Li$(HOME)/local/fftw/lib
+LIBS = -lfftw3 -lfftw3_threads -lnetcdf
+
+OBJECTS = io_utils.o pml.o propagate.o pve_iso_pml.o src.o
+OBJECTS2 = io_utils.o pml.o propagate.o pve_vti_pml.o src.o VqP1.o \
+VqP2.o VqS.o
+
+
+pve_iso_pml : $(OBJECTS)
+	$(CC) $(CFLAGS) $(LFLAGS) $(LIBS) $(OBJECTS) -o pve_iso_pml
+
+pve_vti_pml : $(OBJECTS2)
+	$(CC) $(CFLAGS) $(LFLAGS) $(LIBS) $(OBJECTS2) -o pve_vti_pml
+
+io_utils.o : io_utils.c io_utils.h
+
+pml.o : pml.h
+
+propagate.o : propagate.c propagate.h
+
+pve_iso_pml.o : io_utils.h pml.h propagate.h structs.h src.h pve_iso_pml.c
+
+pve_vti_pml.o : io_utils.h pml.h propagate.h structs.h src.h pve_vti_pml.c V.h
+
+src.o : src.c src.h
+
+VqP1.o : V.h VqP1.c
+
+VqP2.o : V.h VqP2.c
+
+VqS.o : V.h VqS.c
+
+clean:
+	-rm -f *.o *~ core
