@@ -53,24 +53,29 @@ void pml_t(const double *, const double *, const double *, const double *,
 
 void alloc_cpml(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 				struct mem_pml mem[3], const struct grid *g);
-
 void free_cpml(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 			   struct mem_pml mem[3]);
 
 void alloc_cpml_ve(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
                    struct mem_pml mem[3], const struct grid *g);
-
 void free_cpml_ve(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
                   struct mem_pml mem[3]);
 
 void alloc_cpml_ve_sh(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 					  struct mem_pml_sh mem_sh[3], const struct grid *g);
-
 void free_cpml_ve_sh(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 					 struct mem_pml_sh mem[3]);
+
+void alloc_cpml_cyl(struct fac_cpml_cyl *fp, struct mem_cpml_cyl *mem,
+                    const struct grid *g, const int n);
+void free_cpml_cyl(struct fac_cpml_cyl *fp, struct mem_cpml_cyl *mem);
 
 void compute_cpml(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 				  const struct grid *g, const double dt, const double f,
 				  const short iwipe);
+
+void compute_cpml_cyl(struct fac_cpml_cyl *fp, const struct grid *g,
+                      const double dt, const double f, const short iwipe);
+
 double quick_select(double arr[], size_t n);
 void pml_median_average( double *data, const struct grid *g );

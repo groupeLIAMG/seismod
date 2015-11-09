@@ -53,6 +53,8 @@ void read_modelVTI(const char filename[], const struct grid *g,
 				   struct materialPropertiesVTI *mp);
 void read_model_e(const char filename[], const struct grid *g, double *vp,
 				  double *vs, double *rho);
+void read_model_e_cyl(const char filename[], const struct grid *g, double *vp,
+                      double *vs, double *rho);
 void read_model_a(const char filename[], const struct grid3d *g, double *vp,
 				  double *rho);
 void read_model_ve(const char filename[], const struct grid *g,

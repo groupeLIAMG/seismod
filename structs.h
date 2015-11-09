@@ -41,9 +41,10 @@
 
 #include "fftw3.h"
 
-enum sourceType { SX, SY, SZ, SXY, SXZ, SYZ, BULK, SF, BULK_S };
-enum component { VX, VY, VZ, QX, QZ, TXX, TZZ, TXZ, P, TXY, TYZ, DIV, CURL };
+enum sourceType { SX, SY, SZ, SXY, SXZ, SYZ, BULK, SF, BULK_S, FR, FT, FZ, KURKJIAN };
+enum component { VX, VY, VZ, QX, QZ, TXX, TZZ, TXZ, P, TXY, TYZ, DIV, CURL, VR, VT, TRR, TRT, TRZ, TTT, TTZ };
 enum typeRecord { TRACE, SNAPSHOT };
+enum coordinates { CARTESIAN, CYLINDRICAL };
 
 struct abs_params {
     size_t np;           // number of padding nodes for absorbing boundaries
@@ -59,6 +60,7 @@ struct abs_params {
 };
 
 struct grid {
+    enum coordinates coord;
     size_t nx, nz;     // number of nodes in x and z
     size_t nx2, nz2;   // total number of nodes
     short  Qdamping;   // decrease Q in absorbing boundaries (1: yes, 0: no)
@@ -99,6 +101,7 @@ struct inputParams {
 	double roiEzmax;
     int    shotpt_no;  // shotpoint number (for SEGY files)
     int    simulateCMP;
+    int    n;
 };
 
 struct materialProperties {
@@ -394,6 +397,24 @@ struct fac_pml {
     double *cH_z;  // at half grid cell, end of grid
 };
 
+struct fac_cpml_cyl {
+    double *ik_r;  // 1/kappa of Roden and Gedney, 2000
+    double *ik_z;
+    double *ikh_z;  // at half grid cell
+    double *ikH_r;  // at half grid cell, end of grid
+    double *ikH_z;  // at half grid cell, end of grid
+    double *b_r;
+    double *c_r;
+    double *bH_r;  // at half grid cell, end of grid
+    double *cH_r;  // at half grid cell, end of grid
+    double *b_z;
+    double *c_z;
+    double *bh_z;  // at half grid cell
+    double *ch_z;  // at half grid cell
+    double *bH_z;  // at half grid cell, end of grid
+    double *cH_z;  // at half grid cell, end of grid
+};
+
 struct mem_pml {  // memory variables
     double *dx_txx;
     double *dx_p;
@@ -416,10 +437,67 @@ struct mem_pml_sh {  // memory variables
     double *dz_vy;
 };
 
+struct mem_cpml_cyl {
+    // for v_r
+    double *dtrr_dr;
+    double *trr_r1;
+    double *trt_r1;
+    double *ttt_r1;
+    double *dtrz_dz;
+    // for v_t
+    double *trt_r2;
+    double *dtrt_dr;
+    double *ttt_r2;
+    double *dttz_dz;
+    // for v_z
+    double *dtzz_dz;
+    double *dtrz_dr;
+    double *trz_r;
+    double *ttz_r;
+    // for \tau_rr, \tau_\theta\theta, \tau_zz
+    double *dvr_dr;
+    double *vr_r1;
+    double *vt_r1;
+    double *dvz_dz;
+    // for \tau_rz
+    double *dvr_dz;
+    double *dvz_dr;
+    // for \tau_r\theta
+    double *dvt_dr;
+    double *vr_r2;
+    double *vt_r2;
+    // for \tau_\theta z
+    double *dvt_dz;
+    double *vz_r;
+};
+
+struct variables_cyl {
+    // particle velocities
+    double *vr;   // v_r
+    double *vt;   // v_\theta
+    double *vz;   // v_z
+    // stresses
+    double *trr;  // \tau_{rr}
+    double *ttt;  // \tau_{\theta\theta}
+    double *tzz;  // \tau_{zz}
+    double *trz;  // \tau_{rz}
+    double *trt;  // \tau_{r\theta}
+    double *ttz;  // \tau_{\theta z}
+    // properties
+    double *lij;  // \lambda at (i+1/2,j+1/2)
+    double *l2mij;// \lambda+2\mu at (i+1/2,j+1/2)
+    double *mu;   // \mu at (i,j)
+    double *mui;  // \mu at (i+1/2)
+    double *muj;  // \mu at (i,j+1/2)
+    double *bi;   // 1/\rho at (i+1/2,j)
+    double *bj;   // 1/\rho at (i,j+1/2)
+    double *bij;  // 1/\rho at (i+1/2,j+1/2)
+};
+
 struct saveEnergy {
     double *rho11;
     double *rho12;
-    double *rho22;	
+    double *rho22;
 	size_t i1E;
 	size_t i2E;
 	size_t j1E;

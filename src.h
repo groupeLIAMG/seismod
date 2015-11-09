@@ -43,5 +43,11 @@ void add_src_ve_rk4(struct sourceParams *, double *, double *,
                     const double, const double, const size_t, const size_t);
 void add_src_ve_sh_rk4(struct sourceParams *, double *, double *,
                     const double, const double, const size_t, const size_t);
-void add_src(struct sourceParams *, double *, double *, double *,
+void add_src(const struct sourceParams *, double *, double *, double *,
 			 const double, const size_t);
+void add_force_src_cyl(const struct sourceParams *s, struct variables_cyl *v,
+                       const double dt, const size_t it);
+void compute_kurkjian(struct sourceParams *s, const struct variables_cyl *v,
+                      const struct grid *g, const double dt, const int n);
+void add_kurkjian_src(const struct sourceParams *s, struct variables_cyl *v,
+                      const double dt, const size_t it);

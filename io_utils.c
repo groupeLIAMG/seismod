@@ -62,6 +62,7 @@ extern char *optarg;
 
 void set_defaults(struct grid *g, struct inputParams *p) {
 
+    g->coord = CARTESIAN;
     g->nx = 300;
     g->nz = 360;
     g->x0 = 0.0;
@@ -93,6 +94,7 @@ void set_defaults(struct grid *g, struct inputParams *p) {
 	p->roiEzmax = 0.0;
     p->shotpt_no = 1;
     p->simulateCMP = 0;
+    p->n = 0;
 }
 
 void set_defaults_3d(struct grid3d *g, struct inputParams *p) {
@@ -283,8 +285,12 @@ void process_args(int argc, char * const argv[], struct inputParams *p) {
 		else if ( strcmp(keyword, "simulateCMP") == 0 ) {
 			p->simulateCMP = atoi(value);
 		}
+        else if ( strcmp(keyword, "azimuthal_mode") == 0 ) {
+            p->n = atoi(value);
+        }
         
 	}
+    if ( p->iwipe == 0 ) p->ab->np = 0;
 }
 
 void read_grid_params(const char filename[], struct grid *g) {
@@ -309,6 +315,11 @@ void read_grid_params(const char filename[], struct grid *g) {
 		g->nz2 = g->nz;
 		g->nz -= 2*g->ab.np;		
 	}
+    else if ( strcmp(type, "isotropic_elastic_cyl") == 0) {
+        g->coord = CYLINDRICAL;
+        g->nx2 = g->nx +   g->ab.np;
+        g->nz2 = g->nz + 2*g->ab.np;
+    }
 	else {
 		g->nx2 = g->nx + 2*g->ab.np;
 		g->nz2 = g->nz + 2*g->ab.np;
@@ -933,7 +944,85 @@ void read_model_e(const char filename[], const struct grid *g, double *vp,
             }
         }
     }
+}
+
+void read_model_e_cyl(const char filename[], const struct grid *g, double *vp,
+                      double *vs, double *rho) {
+    FILE *fid;
     
+    fid = fopen(filename, "r");
+    if ( fid==NULL ) {
+        fprintf(stderr, "Error, cannot open %s for reading\n", filename);
+        exit(1);
+    }
+    fscanf(fid, "%*d %*d");
+    fscanf(fid, "%*f %*f");
+    fscanf(fid, "%*f %*f");
+    char type[30];
+    fscanf(fid, "%s", type);
+    if ( strcmp(type, "isotropic_elastic_cyl") != 0 ) {
+        fprintf(stderr, "Error, model in %s not isotropic_elastic_cyl\n", filename);
+        exit(1);
+    }
+    
+    size_t nv=0;
+    int flag1D=0, nread;
+    size_t i=0;
+    for (size_t j=0; j<g->nz; ++j) {
+        size_t ind = i*g->nz2 + j+g->ab.np;
+        
+        nread = fscanf(fid, "%lf %lf %lf", &(vp[ind]), &(vs[ind]), &(rho[ind]));
+        
+        if ( nread<=0 && j==1 ) {
+            flag1D = 1;
+            break;
+        }
+        
+        for (i=1; i<g->nx; ++i, ++nv) {
+            ind = i*g->nz2 + j+g->ab.np;
+            
+            nread = fscanf(fid, "%lf %lf %lf", &(vp[ind]), &(vs[ind]), &(rho[ind]));
+            
+            if (nread != 3) {
+                fprintf(stderr, "Error: something wrong with file %s\n", filename);
+                exit(1);
+            }
+        }
+    }
+    fclose(fid);
+    
+    if ( flag1D == 1 ) {
+        for (size_t i=0; i<g->nx; ++i) {
+            for (size_t j=1; j<g->nz; ++j, ++nv) {
+                size_t ind = i*g->nz2 + j+g->ab.np;
+                
+                vp[ind]   = vp[i*g->nz2  + g->ab.np];
+                vs[ind]   = vs[i*g->nz2  + g->ab.np];
+                rho[ind]  = rho[i*g->nz2 + g->ab.np];
+            }
+        }
+    }
+    
+    // duplicate values in PML
+    for ( size_t i=0; i<g->nx; ++i ) {
+        for ( size_t j=0; j<g->ab.np; ++j ) {
+            vp[i*g->nz2+j]  = vp[i*g->nz2  + g->ab.np];
+            vs[i*g->nz2+j]  = vs[i*g->nz2  + g->ab.np];
+            rho[i*g->nz2+j] = rho[i*g->nz2 + g->ab.np];
+        }
+        for ( size_t j=g->nz+g->ab.np; j<g->nz2; ++j ) {
+            vp[i*g->nz2+j]  = vp[i*g->nz2  + g->nz+g->ab.np-1];
+            vs[i*g->nz2+j]  = vs[i*g->nz2  + g->nz+g->ab.np-1];
+            rho[i*g->nz2+j] = rho[i*g->nz2 + g->nz+g->ab.np-1];
+        }
+    }
+    for ( size_t i=g->nx; i<g->nx2; ++i ) {
+        for ( size_t j=0; j<g->nz2; ++j ) {
+            vp[i*g->nz2+j]  = vp[(g->nx-1)*g->nz2  + j];
+            vs[i*g->nz2+j]  = vs[(g->nx-1)*g->nz2  + j];
+            rho[i*g->nz2+j] = rho[(g->nx-1)*g->nz2 + j];
+        }
+    }
 }
 
 void read_model_a(const char filename[], const struct grid3d *g, double *vp,
@@ -1352,7 +1441,7 @@ void read_source(const char filename[], const struct grid *g, struct sourceParam
 	fscanf(fid, "%zd", &(src->nTemplate));
 	if ( NULL == ( src->s = (struct source *) malloc(src->nsrc*src->nTemplate*sizeof(struct source)))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
 
-	char t[5];
+	char t[50];
 	for ( size_t n=0; n<src->nsrc*src->nTemplate; n+=src->nTemplate ) {
 		
 		fscanf(fid, "%s", t);
@@ -1364,6 +1453,8 @@ void read_source(const char filename[], const struct grid *g, struct sourceParam
 			src->s[n].type = SXY;
 		} else if ( strcmp(t,"sxz")==0 || strcmp(t,"SXZ")==0 || strcmp(t,"Sxz")==0 ) {
 			src->s[n].type = SXZ;
+        } else if ( strcmp(t,"srz")==0 || strcmp(t,"SRZ")==0 || strcmp(t,"Srz")==0 ) {
+            src->s[n].type = SXZ;
 		} else if ( strcmp(t,"syz")==0 || strcmp(t,"SYZ")==0 || strcmp(t,"Syz")==0 ) {
 			src->s[n].type = SYZ;
 		} else if ( strcmp(t,"sf")==0 || strcmp(t,"SF")==0 || strcmp(t,"Sf")==0 ) {
@@ -1372,7 +1463,15 @@ void read_source(const char filename[], const struct grid *g, struct sourceParam
 			src->s[n].type = BULK;
 		} else if ( strcmp(t,"bulk_s")==0 || strcmp(t,"BULK_S")==0 || strcmp(t,"Bulk_s")==0 ) {
 			src->s[n].type = BULK_S;
-		} else {
+        } else if( strcmp(t,"fr")==0 || strcmp(t,"FR")==0 || strcmp(t,"Fr")==0 ) {
+            src->s[n].type = FR;
+        } else if( strcmp(t,"fz")==0 || strcmp(t,"FZ")==0 || strcmp(t,"Fz")==0 ) {
+            src->s[n].type = FZ;
+        } else if( strcmp(t,"ftheta")==0 || strcmp(t,"FTHETA")==0 || strcmp(t,"Ftheta")==0 ) {
+            src->s[n].type = FT;
+        } else if ( strcmp(t,"kurkjian")==0 || strcmp(t,"Kurkjian")==0 ) {
+            src->s[n].type = KURKJIAN;
+        } else {
             fprintf(stderr, "Error: type of source (%s) not implemented\n", t);
             exit(1);
         }
@@ -1382,7 +1481,9 @@ void read_source(const char filename[], const struct grid *g, struct sourceParam
 		fscanf(fid,"%lf %lf", &(src->s[n].x), &(src->s[n].z) );
 		
 //		src->s[n].A *= 1.e6;   // source strength now in Pa
-		size_t i = round((src->s[n].x-g->x0)/g->dx)+g->ab.np;
+        size_t i = round((src->s[n].x-g->x0)/g->dx)+g->ab.np;
+        if ( g->coord == CYLINDRICAL )
+            i = round((src->s[n].x-g->x0)/g->dx);
 		size_t j = round((src->s[n].z-g->z0)/g->dz)+g->ab.np;
 		src->s[n].i = i*g->nz2+j;
 		
@@ -1520,6 +1621,20 @@ void read_output(const char filename[], const struct grid *g, struct outputParam
             out->r[n].comp = TYZ;
         } else if ( strcmp(t,"txz")==0 || strcmp(t,"TXZ")==0 ) {
             out->r[n].comp = TXZ;
+        } else if ( strcmp(t,"Vr")==0 || strcmp(t,"vr")==0 || strcmp(t,"VR")==0 ) {
+            out->r[n].comp = VR;
+        } else if ( strcmp(t,"Vtheta")==0 || strcmp(t,"vtheta")==0 || strcmp(t,"VTHETA")==0 ) {
+            out->r[n].comp = VT;
+        } else if ( strcmp(t,"trr")==0 || strcmp(t,"TRR")==0 ) {
+            out->r[n].comp = TRR;
+        } else if ( strcmp(t,"trtheta")==0 || strcmp(t,"TRTHETA")==0 ) {
+            out->r[n].comp = TRT;
+        } else if ( strcmp(t,"trz")==0 || strcmp(t,"TRZ")==0 ) {
+            out->r[n].comp = TRZ;
+        } else if ( strcmp(t,"tthetatheta")==0 || strcmp(t,"TTHETATHETA")==0 ) {
+            out->r[n].comp = TTT;
+        } else if ( strcmp(t,"tthetaz")==0 || strcmp(t,"TTHETAZ")==0 ) {
+            out->r[n].comp = TTZ;
         } else if ( strcmp(t,"p")==0 || strcmp(t,"P")==0 ) {
             out->r[n].comp = P;
         } else if ( strcmp(t,"div")==0 || strcmp(t,"Div")==0 || strcmp(t,"DIV")==0 ) {
@@ -1540,6 +1655,9 @@ void read_output(const char filename[], const struct grid *g, struct outputParam
             out->r[n].dt *= 1.e-3;
             
             size_t i = lround((out->r[n].x-g->x0)/g->dx)+g->ab.np;
+            if ( g->coord == CYLINDRICAL )
+                i = round((out->r[n].x-g->x0)/g->dx);
+
             size_t j = lround((out->r[n].z-g->z0)/g->dz)+g->ab.np;
             out->r[n].i = i*g->nz2+j;
             
@@ -1623,12 +1741,12 @@ void write_trace(const double *data, const double t, struct outputParams *out,
                  const size_t nr) {
     if ( out->r[nr].fid == NULL ) {
         struct stat sb;
+        char filename[80];
         if ( stat("trc", &sb) < 0 ) {
             if ( errno == ENOENT ) {
                 mkdir("trc", S_IRWXU);
             }
         }
-        char filename[80];
 		sprintf(filename, "trc/%s", out->basename );
         if ( stat(filename, &sb) < 0 ) {
             if ( errno == ENOENT ) {
@@ -1655,12 +1773,12 @@ void write_snapshot(const double *data, const double t, const struct grid *g,
                     struct outputParams *out, const size_t nr, const short plstr) {
 
     struct stat sb;
+    char filename[80];
     if ( stat("ssh", &sb) < 0 ) {
         if ( errno == ENOENT ) {
             mkdir("ssh", S_IRWXU);
         }
-    }
-    char filename[80];
+    }		
 	sprintf(filename, "ssh/%s", out->basename );
 	if ( stat(filename, &sb) < 0 ) {
 		if ( errno == ENOENT ) {
@@ -1701,12 +1819,12 @@ void write_snapshot_nc(const double *data, const double t, const struct grid *g,
                        struct outputParams *out, const size_t nr, const short plstr) {
     
     struct stat sb;
+    char filename[80];
     if ( stat("ssh", &sb) < 0 ) {
         if ( errno == ENOENT ) {
             mkdir("ssh", S_IRWXU);
         }
     }
-    char filename[80];
 	sprintf(filename, "ssh/%s", out->basename );
 	if ( stat(filename, &sb) < 0 ) {
 		if ( errno == ENOENT ) {
@@ -1752,7 +1870,10 @@ void write_snapshot_nc(const double *data, const double t, const struct grid *g,
 	
 	double dummy[2];
     if ( plstr ) {
-        dummy[0] = g->x0 - g->ab.np*g->dx;
+        if ( g->coord == CARTESIAN )
+            dummy[0] = g->x0 - g->ab.np*g->dx;
+        else // cylindrical
+            dummy[0] = g->x0;
         dummy[1] = g->x0 + (g->nx+g->ab.np-1)*g->dx;
     } else {
         dummy[0] = g->x0;
@@ -1818,7 +1939,10 @@ void write_snapshot_nc(const double *data, const double t, const struct grid *g,
         if ( NULL == ( x = (double*) malloc( g->nx2*sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
         if ( NULL == ( y = (double*) malloc( g->nz2*sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
         for (size_t i=0; i<g->nx2; ++i) {
-            x[i] = g->x0 + ((1.0*i)-g->ab.np)*g->dx;
+            if ( g->coord == CARTESIAN )
+                x[i] = g->x0 + ((1.0*i)-g->ab.np)*g->dx;
+            else // cylindrical
+                x[i] = g->x0 + i*g->dx;
         }
         if (( rval=nc_put_var_double (ncid, ids[1], x) ))
             ERR(rval);
@@ -2095,7 +2219,10 @@ void write_field_nc(const double *data, const char *fieldname,
 	
 	double dummy[2];
     if ( plstr ) {
-        dummy[0] = g->x0 - g->ab.np*g->dx;
+        if ( g->coord == CARTESIAN )
+            dummy[0] = g->x0 - g->ab.np*g->dx;
+        else // cylindrical
+            dummy[0] = g->x0;
         dummy[1] = g->x0 + (g->nx+g->ab.np-1)*g->dx;
     } else {
         dummy[0] = g->x0;
@@ -2161,7 +2288,10 @@ void write_field_nc(const double *data, const char *fieldname,
         if ( NULL == ( x = (double*) malloc( g->nx2*sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
         if ( NULL == ( y = (double*) malloc( g->nz2*sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
         for (size_t i=0; i<g->nx2; ++i) {
-            x[i] = g->x0 + ((1.0*i)-g->ab.np)*g->dx;
+            if ( g->coord == CARTESIAN )
+                x[i] = g->x0 + ((1.0*i)-g->ab.np)*g->dx;
+            else // cylindrical
+                x[i] = g->x0 + i*g->dx;
         }
         if (( rval=nc_put_var_double (ncid, ids[1], x) ))
             ERR(rval);
@@ -3135,12 +3265,12 @@ void read_checkpoint2VTI(const char *filename, const struct grid *g,
 void save_segy(const struct inputParams *p, const struct outputParams *out,
                const struct sourceParams *src) {
     struct stat sb;
+    char fname[80];
     if ( stat("segy", &sb) < 0 ) {
         if ( errno == ENOENT ) {
             mkdir("segy", S_IRWXU);
         }
     }
-    char fname[80];
     sprintf(fname, "segy/%s.sgy", p->basename );
     FILE *fid = fopen(fname, "w");
     if ( fid == NULL ) {

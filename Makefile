@@ -15,6 +15,9 @@ COMMUN = io_utils.o pml.o propagate.o src.o
 OBJECTS =  pve_iso_pml.o $(COMMUN)
 OBJECTS2 = pve_vti_pml.o VqP1.o VqP2.o VqS.o $(COMMUN)
 
+bin/e_cyl_iso : e_cyl_iso.o $(COMMUN)
+	$(CC) $(CFLAGS) $(LFLAGS) $(LIBS) e_cyl_iso.o $(COMMUN) -o bin/e_cyl_iso
+
 bin/pve_iso_pml : $(OBJECTS)
 	$(CC) $(CFLAGS) $(LFLAGS) $(LIBS) $(OBJECTS) -o bin/pve_iso_pml
 
@@ -48,6 +51,8 @@ VqS.o : V.h VqS.c
 ve_vti_pml.o : io_utils.h pml.h propagate.h structs.h src.h  ve_vti_pml.c
 
 ve_vti_sh_pml.o : io_utils.h pml.h propagate.h structs.h src.h  ve_vti_sh_pml.c
+
+e_cyl_iso.o : e_cyl_iso/e_cyl_iso.c io_utils.h pml.h propagate.h structs.h src.h
 
 clean:
 	-rm -f *.o *~ core

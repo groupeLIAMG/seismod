@@ -2701,3 +2701,1221 @@ void compute_curl(double *curl, const struct grid *g, struct fftw_data *d) {
         curl[n] = d->t2[n] - d->t1[n];
 }
 
+
+void update_vr_cyl(struct variables_cyl *v, const struct grid *g,
+                   struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                   double dt) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=1; i<g->nx; ++i ) {
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bh_z[j]*mem->dtrz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dtrz_dz[ipmlz];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx +
+              (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx) -
+              (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             ddz );
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]-  v->trr[(i-1)*g->nz2+j])/g->dx +
+              (v->trr[i*g->nz2+j]+  v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx) -
+              (v->ttt[i*g->nz2+j]+  v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+              (v->trz[i*g->nz2+j+1]-v->trz[i*g->nz2+j])/g->dz );
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bH_z[jj]*mem->dtrz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dtrz_dz[ipmlz];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx +
+              (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx) -
+              (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             ddz );
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx;
+        
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bh_z[j]*mem->dtrz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dtrz_dz[ipmlz];
+            
+            double ddr1 = (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx;
+            mem->dtrr_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dtrr_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr1;
+            ddr1 = fp->ik_r[Npml-1-ii]*ddr1 + mem->dtrr_dr[ipmlr];
+            
+            double dr1 = (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->trr_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trr_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr1;
+            dr1 = fp->ik_r[Npml-1-ii]*dr1 + mem->trr_r1[ipmlr];
+            
+            double dr3 = (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->ttt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->ttt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr3;
+            dr3 = fp->ik_r[Npml-1-ii]*dr3 + mem->ttt_r1[ipmlr];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] * (ddr1 + dr1 - dr3 + ddz);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j, ++ipmlr ) {
+            
+            double ddr1 = (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx;
+            mem->dtrr_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dtrr_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr1;
+            ddr1 = fp->ik_r[Npml-1-ii]*ddr1 + mem->dtrr_dr[ipmlr];
+            
+            double dr1 = (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->trr_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trr_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr1;
+            dr1 = fp->ik_r[Npml-1-ii]*dr1 + mem->trr_r1[ipmlr];
+            
+            double dr3 = (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->ttt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->ttt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr3;
+            dr3 = fp->ik_r[Npml-1-ii]*dr3 + mem->ttt_r1[ipmlr];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            (ddr1 + dr1 - dr3 + (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bH_z[jj]*mem->dtrz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dtrz_dz[ipmlz];
+
+            double ddr1 = (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx;
+            mem->dtrr_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dtrr_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr1;
+            ddr1 = fp->ik_r[Npml-1-ii]*ddr1 + mem->dtrr_dr[ipmlr];
+            
+            double dr1 = (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->trr_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trr_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr1;
+            dr1 = fp->ik_r[Npml-1-ii]*dr1 + mem->trr_r1[ipmlr];
+            
+            double dr3 = (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->ttt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->ttt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr3;
+            dr3 = fp->ik_r[Npml-1-ii]*dr3 + mem->ttt_r1[ipmlr];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] * (ddr1 + dr1 - dr3 + ddz);
+        }
+    }
+}
+
+void update_vt_cyl(struct variables_cyl *v, const struct grid *g,
+                   struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                   double dt) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bh_z[j]*mem->dttz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dttz_dz[ipmlz];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            ((v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx) +
+             (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx + ddz);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            ((v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx) +
+             (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx +
+             (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bH_z[jj]*mem->dttz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dttz_dz[ipmlz];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            ((v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx) +
+             (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx + ddz);
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bh_z[j]*mem->dttz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dttz_dz[ipmlz];
+            
+            double dr1 = (v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx);
+            mem->trt_r2[ipmlr] = fp->bH_r[ii]*mem->trt_r2[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trt_r2[ipmlr];
+            
+            double ddr = (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx;
+            mem->dtrt_dr[ipmlr] = fp->bH_r[ii]*mem->dtrt_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrt_dr[ipmlr];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] * (dr1 + ddr + ddz);
+
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j, ++ipmlr ) {
+            
+            double dr1 = (v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx);
+            mem->trt_r2[ipmlr] = fp->bH_r[ii]*mem->trt_r2[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trt_r2[ipmlr];
+            
+            double ddr = (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx;
+            mem->dtrt_dr[ipmlr] = fp->bH_r[ii]*mem->dtrt_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrt_dr[ipmlr];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            (dr1 + ddr + (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bH_z[jj]*mem->dttz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dttz_dz[ipmlz];
+            
+            double dr1 = (v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx);
+            mem->trt_r2[ipmlr] = fp->bH_r[ii]*mem->trt_r2[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trt_r2[ipmlr];
+            
+            double ddr = (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx;
+            mem->dtrt_dr[ipmlr] = fp->bH_r[ii]*mem->dtrt_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrt_dr[ipmlr];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] * (dr1 + ddr + ddz);
+        }
+    }
+}
+
+void update_vz_cyl(struct variables_cyl *v, const struct grid *g,
+                   struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                   double dt) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[j]*mem->dtzz_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dtzz_dz[ipmlz];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            (ddz +
+             (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx +
+             (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx));
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            ((v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz +
+             (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx +
+             (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx));
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dtzz_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dtzz_dz[ipmlz];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            (ddz + (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx +
+             (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx));
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[j]*mem->dtzz_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dtzz_dz[ipmlz];
+            
+            double ddr = (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx;
+            mem->dtrz_dr[ipmlr] = fp->bH_r[ii]*mem->dtrz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrz_dr[ipmlr];
+            
+            double dr1 = (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->trz_r[ipmlr] = fp->bH_r[ii]*mem->trz_r[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trz_r[ipmlr];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] * (ddz + ddr + dr1);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j, ++ipmlr ) {
+            
+            double ddr = (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx;
+            mem->dtrz_dr[ipmlr] = fp->bH_r[ii]*mem->dtrz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrz_dr[ipmlr];
+            
+            double dr1 = (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->trz_r[ipmlr] = fp->bH_r[ii]*mem->trz_r[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trz_r[ipmlr];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            ((v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz + ddr + dr1);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dtzz_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dtzz_dz[ipmlz];
+            
+            double ddr = (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx;
+            mem->dtrz_dr[ipmlr] = fp->bH_r[ii]*mem->dtrz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrz_dr[ipmlr];
+            
+            double dr1 = (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->trz_r[ipmlr] = fp->bH_r[ii]*mem->trz_r[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trz_r[ipmlr];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] * (ddz + ddr + dr1);
+       }
+    }
+}
+
+void update_taa_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            double vrr =   (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bh_z[j]*mem->dvz_dz[ipmlz] + fp->ch_z[j]*dvzdz;
+            dvzdz = fp->ikh_z[j]*dvzdz + mem->dvz_dz[ipmlz];
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*vrr +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*vrr +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bH_z[jj]*mem->dvz_dz[ipmlz] + fp->cH_z[jj]*dvzdz;
+            dvzdz = fp->ikH_z[jj]*dvzdz + mem->dvz_dz[ipmlz];
+
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*vrr +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr);
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            mem->dvr_dr[ipmlr] = fp->bH_r[ii]*mem->dvr_dr[ipmlr] + fp->cH_r[ii]*dvrdr;
+            dvrdr = fp->ikH_r[ii]*dvrdr + mem->dvr_dr[ipmlr];
+            
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->vr_r1[ipmlr] = fp->bH_r[ii]*mem->vr_r1[ipmlr] + fp->cH_r[ii]*vrr;
+            vrr = fp->ikH_r[ii]*vrr + mem->vr_r1[ipmlr];
+            
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bh_z[j]*mem->dvz_dz[ipmlz] + fp->ch_z[j]*dvzdz;
+            dvzdz = fp->ikh_z[j]*dvzdz + mem->dvz_dz[ipmlz];
+
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*vrr +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j, ++ipmlr ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            mem->dvr_dr[ipmlr] = fp->bH_r[ii]*mem->dvr_dr[ipmlr] + fp->cH_r[ii]*dvrdr;
+            dvrdr = fp->ikH_r[ii]*dvrdr + mem->dvr_dr[ipmlr];
+            
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->vr_r1[ipmlr] = fp->bH_r[ii]*mem->vr_r1[ipmlr] + fp->cH_r[ii]*vrr;
+            vrr = fp->ikH_r[ii]*vrr + mem->vr_r1[ipmlr];
+            
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*vrr +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            mem->dvr_dr[ipmlr] = fp->bH_r[ii]*mem->dvr_dr[ipmlr] + fp->cH_r[ii]*dvrdr;
+            dvrdr = fp->ikH_r[ii]*dvrdr + mem->dvr_dr[ipmlr];
+            
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->vr_r1[ipmlr] = fp->bH_r[ii]*mem->vr_r1[ipmlr] + fp->cH_r[ii]*vrr;
+            vrr = fp->ikH_r[ii]*vrr + mem->vr_r1[ipmlr];
+            
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bH_z[jj]*mem->dvz_dz[ipmlz] + fp->cH_z[jj]*dvzdz;
+            dvzdz = fp->ikH_z[jj]*dvzdz + mem->dvz_dz[ipmlz];
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*vrr +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr);
+        }
+    }
+}
+
+void update_trz_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=1; i<g->nx; ++i ) {
+
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bh_z[j]*mem->dvr_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dvr_dz[ipmlz];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            ((v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz +
+             (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bH_z[jj]*mem->dvr_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dvr_dz[ipmlz];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx);
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx;
+
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bh_z[j]*mem->dvr_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dvr_dz[ipmlz];
+
+            double ddr = (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+            mem->dvz_dr[ipmlr] = fp->bH_r[ii]*mem->dvz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dvz_dr[ipmlr];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + ddr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j, ++ipmlr ) {
+            
+            double ddr = (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+            mem->dvz_dr[ipmlr] = fp->bH_r[ii]*mem->dvz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dvz_dr[ipmlr];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            ((v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz + ddr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bH_z[jj]*mem->dvr_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dvr_dz[ipmlz];
+            
+            double ddr = (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+            mem->dvz_dr[ipmlr] = fp->bH_r[ii]*mem->dvz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dvz_dr[ipmlr];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + ddr);
+        }
+    }
+}
+
+void update_trt_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    
+    for ( size_t i=1; i<g->nx; ++i ) {
+        for ( size_t j=0; j<g->nz2; ++j ) {
+
+            v->trt[i*g->nz2+j] += dt*v->muj[i*g->nz2+j]*
+            ( (v->vt[i*g->nz2+j]-v->vt[(i-1)*g->nz2+j])/g->dx -
+              (v->vt[i*g->nz2+j]+v->vt[(i-1)*g->nz2+j])/(2.*i*g->dx));
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx;
+        
+        for ( size_t j=0; j<g->nz2; ++j, ++ipmlr ) {
+            
+            double ddr = (v->vt[i*g->nz2+j]-v->vt[(i-1)*g->nz2+j])/g->dx;
+            mem->dvt_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dvt_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr;
+            ddr = fp->ik_r[Npml-1-ii]*ddr + mem->dvt_dr[ipmlr];
+            
+            double vtr = (v->vt[i*g->nz2+j]+v->vt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->vt_r2[ipmlr] = fp->b_r[Npml-1-ii]*mem->vt_r2[ipmlr] + fp->c_r[Npml-1-ii]*vtr;
+            vtr = fp->ik_r[Npml-1-ii]*vtr + mem->vt_r2[ipmlr];
+            
+            v->trt[i*g->nz2+j] += dt*v->muj[i*g->nz2+j]*(ddr - vtr);
+        }
+    }
+}
+
+void update_ttz_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt){
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[j]*mem->dvt_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dvt_dz[ipmlz];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j] * ddz;
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dvt_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dvt_dz[ipmlz];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]* ddz;
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[j]*mem->dvt_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dvt_dz[ipmlz];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j] * ddz;
+       }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j, ++ipmlr ) {
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dvt_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dvt_dz[ipmlz];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j] * ddz;
+        }
+    }
+}
+
+void update_vr_cyl_n(struct variables_cyl *v, const struct grid *g,
+                     struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                     double dt, const int n) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=1; i<g->nx; ++i ) {
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bh_z[j]*mem->dtrz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dtrz_dz[ipmlz];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx +
+             (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             n*v->trt[i*g->nz2+j]/(i*g->dx) -
+             (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             ddz );
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]-  v->trr[(i-1)*g->nz2+j])/g->dx +
+             (v->trr[i*g->nz2+j]+  v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             n*v->trt[i*g->nz2+j]/(i*g->dx) -
+             (v->ttt[i*g->nz2+j]+  v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             (v->trz[i*g->nz2+j+1]-v->trz[i*g->nz2+j])/g->dz );
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bH_z[jj]*mem->dtrz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dtrz_dz[ipmlz];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx +
+             (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             n*v->trt[i*g->nz2+j]/(i*g->dx) -
+             (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx) +
+             ddz );
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx;
+        
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bh_z[j]*mem->dtrz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dtrz_dz[ipmlz];
+            
+            double ddr1 = (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx;
+            mem->dtrr_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dtrr_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr1;
+            ddr1 = fp->ik_r[Npml-1-ii]*ddr1 + mem->dtrr_dr[ipmlr];
+            
+            double dr1 = (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->trr_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trr_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr1;
+            dr1 = fp->ik_r[Npml-1-ii]*dr1 + mem->trr_r1[ipmlr];
+            
+            double dr2 = v->trt[i*g->nz2+j]/(i*g->dx);
+            mem->trt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr2;
+            dr2 = fp->ik_r[Npml-1-ii]*dr2 + mem->trt_r1[ipmlr];
+            
+            double dr3 = (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->ttt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->ttt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr3;
+            dr3 = fp->ik_r[Npml-1-ii]*dr3 + mem->ttt_r1[ipmlr];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] * (ddr1 + dr1 + n*dr2 - dr3 + ddz);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j, ++ipmlr ) {
+            
+            double ddr1 = (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx;
+            mem->dtrr_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dtrr_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr1;
+            ddr1 = fp->ik_r[Npml-1-ii]*ddr1 + mem->dtrr_dr[ipmlr];
+            
+            double dr1 = (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->trr_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trr_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr1;
+            dr1 = fp->ik_r[Npml-1-ii]*dr1 + mem->trr_r1[ipmlr];
+            
+            double dr2 = v->trt[i*g->nz2+j]/(i*g->dx);
+            mem->trt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr2;
+            dr2 = fp->ik_r[Npml-1-ii]*dr2 + mem->trt_r1[ipmlr];
+            
+            double dr3 = (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->ttt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->ttt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr3;
+            dr3 = fp->ik_r[Npml-1-ii]*dr3 + mem->ttt_r1[ipmlr];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            (ddr1 + dr1 + n*dr2 - dr3 +
+             (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bH_z[jj]*mem->dtrz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dtrz_dz[ipmlz];
+            
+            double ddr1 = (v->trr[i*g->nz2+j]-v->trr[(i-1)*g->nz2+j])/g->dx;
+            mem->dtrr_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dtrr_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr1;
+            ddr1 = fp->ik_r[Npml-1-ii]*ddr1 + mem->dtrr_dr[ipmlr];
+            
+            double dr1 = (v->trr[i*g->nz2+j]+v->trr[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->trr_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trr_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr1;
+            dr1 = fp->ik_r[Npml-1-ii]*dr1 + mem->trr_r1[ipmlr];
+            
+            double dr2 = v->trt[i*g->nz2+j]/(i*g->dx);
+            mem->trt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->trt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr2;
+            dr2 = fp->ik_r[Npml-1-ii]*dr2 + mem->trt_r1[ipmlr];
+            
+            double dr3 = (v->ttt[i*g->nz2+j]+v->ttt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->ttt_r1[ipmlr] = fp->b_r[Npml-1-ii]*mem->ttt_r1[ipmlr] + fp->c_r[Npml-1-ii]*dr3;
+            dr3 = fp->ik_r[Npml-1-ii]*dr3 + mem->ttt_r1[ipmlr];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] * (ddr1 + dr1 + n*dr2 - dr3 + ddz);
+        }
+    }
+}
+
+void update_vt_cyl_n(struct variables_cyl *v, const struct grid *g,
+                     struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                     double dt, const int n) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bh_z[j]*mem->dttz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dttz_dz[ipmlz];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            ((v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx) +
+             (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx -
+             n*v->ttt[i*g->nz2+j]/((i+0.5)*g->dx) + ddz);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            ((v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx) +
+             (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx -
+             n*v->ttt[i*g->nz2+j]/((i+0.5)*g->dx) +
+             (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bH_z[jj]*mem->dttz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dttz_dz[ipmlz];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            ((v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx) +
+             (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx -
+             n*v->ttt[i*g->nz2+j]/((i+0.5)*g->dx) + ddz);
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bh_z[j]*mem->dttz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dttz_dz[ipmlz];
+            
+            double dr1 = (v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx);
+            mem->trt_r2[ipmlr] = fp->bH_r[ii]*mem->trt_r2[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trt_r2[ipmlr];
+            
+            double ddr = (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx;
+            mem->dtrt_dr[ipmlr] = fp->bH_r[ii]*mem->dtrt_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrt_dr[ipmlr];
+            
+            double dr2 = v->ttt[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->ttt_r2[ipmlr] = fp->bH_r[ii]*mem->ttt_r2[ipmlr] + fp->cH_r[ii]*dr2;
+            dr2 = fp->ikH_r[ii]*dr2 + mem->ttt_r2[ipmlr];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] * (dr1 + ddr - n*dr2 + ddz);
+            
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j, ++ipmlr ) {
+            
+            double dr1 = (v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx);
+            mem->trt_r2[ipmlr] = fp->bH_r[ii]*mem->trt_r2[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trt_r2[ipmlr];
+            
+            double ddr = (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx;
+            mem->dtrt_dr[ipmlr] = fp->bH_r[ii]*mem->dtrt_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrt_dr[ipmlr];
+            
+            double dr2 = v->ttt[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->ttt_r2[ipmlr] = fp->bH_r[ii]*mem->ttt_r2[ipmlr] + fp->cH_r[ii]*dr2;
+            dr2 = fp->ikH_r[ii]*dr2 + mem->ttt_r2[ipmlr];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] *
+            (dr1 + ddr - n*dr2 + (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->ttz[i*g->nz2+j+1]-v->ttz[i*g->nz2+j])/g->dz;
+            mem->dttz_dz[ipmlz] = fp->bH_z[jj]*mem->dttz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dttz_dz[ipmlz];
+            
+            double dr1 = (v->trt[(i+1)*g->nz2+j]+v->trt[i*g->nz2+j])/((i+0.5)*g->dx);
+            mem->trt_r2[ipmlr] = fp->bH_r[ii]*mem->trt_r2[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trt_r2[ipmlr];
+            
+            double ddr = (v->trt[(i+1)*g->nz2+j]-v->trt[i*g->nz2+j])/g->dx;
+            mem->dtrt_dr[ipmlr] = fp->bH_r[ii]*mem->dtrt_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrt_dr[ipmlr];
+            
+            double dr2 = v->ttt[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->ttt_r2[ipmlr] = fp->bH_r[ii]*mem->ttt_r2[ipmlr] + fp->cH_r[ii]*dr2;
+            dr2 = fp->ikH_r[ii]*dr2 + mem->ttt_r2[ipmlr];
+            
+            v->vt[i*g->nz2+j] += dt*v->bij[i*g->nz2+j] * (dr1 + ddr - n*dr2 + ddz);
+        }
+    }
+}
+
+void update_vz_cyl_n(struct variables_cyl *v, const struct grid *g,
+                     struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                     double dt, const int n) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[j]*mem->dtzz_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dtzz_dz[ipmlz];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            (ddz +
+             (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx +
+             (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx) +
+             n*v->ttz[i*g->nz2+j]/((i+0.5)*g->dx));
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            ((v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz +
+             (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx +
+             (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx) +
+             n*v->ttz[i*g->nz2+j]/((i+0.5)*g->dx));
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dtzz_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dtzz_dz[ipmlz];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            (ddz + (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx +
+             (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx) +
+             n*v->ttz[i*g->nz2+j]/((i+0.5)*g->dx));
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[j]*mem->dtzz_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dtzz_dz[ipmlz];
+            
+            double ddr = (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx;
+            mem->dtrz_dr[ipmlr] = fp->bH_r[ii]*mem->dtrz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrz_dr[ipmlr];
+            
+            double dr1 = (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->trz_r[ipmlr] = fp->bH_r[ii]*mem->trz_r[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trz_r[ipmlr];
+            
+            double dr2 = v->ttz[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->ttz_r[ipmlr] = fp->bH_r[ii]*mem->ttz_r[ipmlr] + fp->cH_r[ii]*dr2;
+            dr2 = fp->ikH_r[ii]*dr2 + mem->ttz_r[ipmlr];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            (ddz + ddr + dr1 + n*dr2);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j, ++ipmlr ) {
+            
+            double ddr = (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx;
+            mem->dtrz_dr[ipmlr] = fp->bH_r[ii]*mem->dtrz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrz_dr[ipmlr];
+            
+            double dr1 = (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->trz_r[ipmlr] = fp->bH_r[ii]*mem->trz_r[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trz_r[ipmlr];
+            
+            double dr2 = v->ttz[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->ttz_r[ipmlr] = fp->bH_r[ii]*mem->ttz_r[ipmlr] + fp->cH_r[ii]*dr2;
+            dr2 = fp->ikH_r[ii]*dr2 + mem->ttz_r[ipmlr];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            ((v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz + ddr + dr1 + n*dr2);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->tzz[i*g->nz2+j]-v->tzz[i*g->nz2+j-1])/g->dz;
+            mem->dtzz_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dtzz_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dtzz_dz[ipmlz];
+            
+            double ddr = (v->trz[(i+1)*g->nz2+j]-v->trz[i*g->nz2+j])/g->dx;
+            mem->dtrz_dr[ipmlr] = fp->bH_r[ii]*mem->dtrz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dtrz_dr[ipmlr];
+            
+            double dr1 = (v->trz[(i+1)*g->nz2+j]+v->trz[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->trz_r[ipmlr] = fp->bH_r[ii]*mem->trz_r[ipmlr] + fp->cH_r[ii]*dr1;
+            dr1 = fp->ikH_r[ii]*dr1 + mem->trz_r[ipmlr];
+            
+            double dr2 = v->ttz[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->ttz_r[ipmlr] = fp->bH_r[ii]*mem->ttz_r[ipmlr] + fp->cH_r[ii]*dr2;
+            dr2 = fp->ikH_r[ii]*dr2 + mem->ttz_r[ipmlr];
+            
+            v->vz[i*g->nz2+j] += dt*v->bi[i*g->nz2+j] *
+            (ddz + ddr + dr1 + n*dr2);
+        }
+    }
+}
+
+void update_taa_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            double vrr =   (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            double vtr =    v->vt[i*g->nz2+j]/((i+0.5)*g->dx);
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bh_z[j]*mem->dvz_dz[ipmlz] + fp->ch_z[j]*dvzdz;
+            dvzdz = fp->ikh_z[j]*dvzdz + mem->dvz_dz[ipmlz];
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + n*vtr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*(vrr + n*vtr) +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr + n*vtr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            double vtr = v->vt[i*g->nz2+j]/((i+0.5)*g->dx);
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + n*vtr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*(vrr + n*vtr) +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr + n*vtr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            double vtr = v->vt[i*g->nz2+j]/((i+0.5)*g->dx);
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bH_z[jj]*mem->dvz_dz[ipmlz] + fp->cH_z[jj]*dvzdz;
+            dvzdz = fp->ikH_z[jj]*dvzdz + mem->dvz_dz[ipmlz];
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + n*vtr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*(vrr + n*vtr) +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr + n*vtr);
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            mem->dvr_dr[ipmlr] = fp->bH_r[ii]*mem->dvr_dr[ipmlr] + fp->cH_r[ii]*dvrdr;
+            dvrdr = fp->ikH_r[ii]*dvrdr + mem->dvr_dr[ipmlr];
+            
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->vr_r1[ipmlr] = fp->bH_r[ii]*mem->vr_r1[ipmlr] + fp->cH_r[ii]*vrr;
+            vrr = fp->ikH_r[ii]*vrr + mem->vr_r1[ipmlr];
+            
+            double vtr = v->vt[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->vt_r1[ipmlr] = fp->bH_r[ii]*mem->vt_r1[ipmlr] + fp->cH_r[ii]*vtr;
+            vtr = fp->ikH_r[ii]*vtr + mem->vt_r1[ipmlr];
+            
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bh_z[j]*mem->dvz_dz[ipmlz] + fp->ch_z[j]*dvzdz;
+            dvzdz = fp->ikh_z[j]*dvzdz + mem->dvz_dz[ipmlz];
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + n*vtr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*(vrr + n*vtr) +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr + n*vtr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j, ++ipmlr ) {
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            mem->dvr_dr[ipmlr] = fp->bH_r[ii]*mem->dvr_dr[ipmlr] + fp->cH_r[ii]*dvrdr;
+            dvrdr = fp->ikH_r[ii]*dvrdr + mem->dvr_dr[ipmlr];
+            
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->vr_r1[ipmlr] = fp->bH_r[ii]*mem->vr_r1[ipmlr] + fp->cH_r[ii]*vrr;
+            vrr = fp->ikH_r[ii]*vrr + mem->vr_r1[ipmlr];
+            
+            double vtr = v->vt[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->vt_r1[ipmlr] = fp->bH_r[ii]*mem->vt_r1[ipmlr] + fp->cH_r[ii]*vtr;
+            vtr = fp->ikH_r[ii]*vtr + mem->vt_r1[ipmlr];
+            
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + n*vtr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*(vrr + n*vtr) +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr + n*vtr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double dvrdr = (v->vr[(i+1)*g->nz2+j]-v->vr[i*g->nz2+j])/g->dx;
+            mem->dvr_dr[ipmlr] = fp->bH_r[ii]*mem->dvr_dr[ipmlr] + fp->cH_r[ii]*dvrdr;
+            dvrdr = fp->ikH_r[ii]*dvrdr + mem->dvr_dr[ipmlr];
+            
+            double vrr = (v->vr[(i+1)*g->nz2+j]+v->vr[i*g->nz2+j])/(2.*(i+0.5)*g->dx);
+            mem->vr_r1[ipmlr] = fp->bH_r[ii]*mem->vr_r1[ipmlr] + fp->cH_r[ii]*vrr;
+            vrr = fp->ikH_r[ii]*vrr + mem->vr_r1[ipmlr];
+            
+            double vtr = v->vt[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->vt_r1[ipmlr] = fp->bH_r[ii]*mem->vt_r1[ipmlr] + fp->cH_r[ii]*vtr;
+            vtr = fp->ikH_r[ii]*vtr + mem->vt_r1[ipmlr];
+            
+            double dvzdz = (v->vz[i*g->nz2+j+1]-v->vz[i*g->nz2+j])/g->dz;
+            mem->dvz_dz[ipmlz] = fp->bH_z[jj]*mem->dvz_dz[ipmlz] + fp->cH_z[jj]*dvzdz;
+            dvzdz = fp->ikH_z[jj]*dvzdz + mem->dvz_dz[ipmlz];
+            
+            v->trr[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvrdr +
+            dt*v->lij[i*g->nz2+j]*(vrr + n*vtr + dvzdz);
+            
+            v->ttt[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*(vrr + n*vtr) +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + dvzdz);
+            
+            v->tzz[i*g->nz2+j] += dt*v->l2mij[i*g->nz2+j]*dvzdz +
+            dt*v->lij[i*g->nz2+j]*(dvrdr + vrr + n*vtr);
+        }
+    }
+}
+
+void update_trt_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    
+    for ( size_t i=1; i<g->nx; ++i ) {
+        for ( size_t j=0; j<g->nz2; ++j ) {
+            
+            v->trt[i*g->nz2+j] += dt*v->muj[i*g->nz2+j]*
+            ( (v->vt[i*g->nz2+j]-v->vt[(i-1)*g->nz2+j])/g->dx -
+             n*v->vr[i*g->nz2+j]/(i*g->dx) -
+             (v->vt[i*g->nz2+j]+v->vt[(i-1)*g->nz2+j])/(2.*i*g->dx));
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx;
+        
+        for ( size_t j=0; j<g->nz2; ++j, ++ipmlr ) {
+            
+            double ddr = (v->vt[i*g->nz2+j]-v->vt[(i-1)*g->nz2+j])/g->dx;
+            mem->dvt_dr[ipmlr] = fp->b_r[Npml-1-ii]*mem->dvt_dr[ipmlr] + fp->c_r[Npml-1-ii]*ddr;
+            ddr = fp->ik_r[Npml-1-ii]*ddr + mem->dvt_dr[ipmlr];
+            
+            double vrr = v->vr[i*g->nz2+j]/(i*g->dx);
+            mem->vr_r2[ipmlr] = fp->b_r[Npml-1-ii]*mem->vr_r2[ipmlr] + fp->c_r[Npml-1-ii]*vrr;
+            vrr = fp->ik_r[Npml-1-ii]*vrr + mem->vr_r2[ipmlr];
+            
+            double vtr = (v->vt[i*g->nz2+j]+v->vt[(i-1)*g->nz2+j])/(2.*i*g->dx);
+            mem->vt_r2[ipmlr] = fp->b_r[Npml-1-ii]*mem->vt_r2[ipmlr] + fp->c_r[Npml-1-ii]*vtr;
+            vtr = fp->ik_r[Npml-1-ii]*vtr + mem->vt_r2[ipmlr];
+            
+            v->trt[i*g->nz2+j] += dt*v->muj[i*g->nz2+j]*(ddr - n*vrr - vtr);
+        }
+    }
+}
+
+void update_ttz_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n){
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    for ( size_t i=0; i<g->nx-1; ++i ) {
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+            
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[j]*mem->dvt_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dvt_dz[ipmlz];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            (ddz - n*v->vz[i*g->nz2+j]/((i+0.5)*g->dx));
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            ((v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz -
+             n*v->vz[i*g->nz2+j]/((i+0.5)*g->dx));
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dvt_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dvt_dz[ipmlz];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            (ddz - n*v->vz[i*g->nz2+j]/((i+0.5)*g->dx));
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx-1;
+        
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[j]*mem->dvt_dz[ipmlz] + fp->c_z[j]*ddz;
+            ddz = fp->ik_z[j]*ddz + mem->dvt_dz[ipmlz];
+            
+            double vzr = v->vz[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->vz_r[ipmlr] = fp->bH_r[ii]*mem->vz_r[ipmlr] + fp->cH_r[ii]*vzr;
+            vzr = fp->ikH_r[ii]*vzr + mem->vz_r[ipmlr];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            (ddz - n*vzr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j, ++ipmlr ) {
+            
+            double vzr = v->vz[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->vz_r[ipmlr] = fp->bH_r[ii]*mem->vz_r[ipmlr] + fp->cH_r[ii]*vzr;
+            vzr = fp->ikH_r[ii]*vzr + mem->vz_r[ipmlr];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            ((v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz - n*vzr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vt[i*g->nz2+j]-v->vt[i*g->nz2+j-1])/g->dz;
+            mem->dvt_dz[ipmlz] = fp->b_z[Npml-1-jj]*mem->dvt_dz[ipmlz] + fp->c_z[Npml-1-jj]*ddz;
+            ddz = fp->ik_z[Npml-1-jj]*ddz + mem->dvt_dz[ipmlz];
+            
+            double vzr = v->vz[i*g->nz2+j]/((i+0.5)*g->dx);
+            mem->vz_r[ipmlr] = fp->bH_r[ii]*mem->vz_r[ipmlr] + fp->cH_r[ii]*vzr;
+            vzr = fp->ikH_r[ii]*vzr + mem->vz_r[ipmlr];
+            
+            v->ttz[i*g->nz2+j] += dt*v->mui[i*g->nz2+j]*
+            (ddz - n*vzr);
+        }
+    }
+}

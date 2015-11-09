@@ -1400,7 +1400,11 @@ void pml_t(const double *vx_x, const double *vx_z,
         txz_z[ off1 + i*Npml+Npml-1 ] += mu[nx*nz-1] * (vx1 - vx2) / h;
         txz_z[ off1 + i*Npml+Npml-1 ] *= c1;
 	}
-}	
+}
+
+
+
+
 
 void alloc_cpml(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 				struct mem_pml mem[3], const struct grid *g) {
@@ -1804,6 +1808,154 @@ void free_cpml_ve_sh(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *
 	}
 }
 
+void alloc_cpml_cyl(struct fac_cpml_cyl *fp, struct mem_cpml_cyl *mem, const struct grid *g, const int n) {
+    
+    if ( NULL == ( fp->ik_r   = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->ik_z   = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->ikh_z  = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->b_r   = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->c_r   = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->b_z   = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->c_z   = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->bh_z  = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->ch_z  = (double *) malloc( g->ab.np * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->ikH_r  = (double *) malloc( (g->ab.np+1) * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->ikH_z  = (double *) malloc( (g->ab.np+1) * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->bH_r  = (double *) malloc( (g->ab.np+1) * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->cH_r  = (double *) malloc( (g->ab.np+1) * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->bH_z  = (double *) malloc( (g->ab.np+1) * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( fp->cH_z  = (double *) malloc( (g->ab.np+1) * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    
+    // for v_r
+    if ( NULL == ( mem->dtrr_dr = (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->trr_r1 =  (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( n>0 ) {
+        if ( NULL == ( mem->trt_r1 =  (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    } else {
+        mem->trt_r1 = NULL;
+    }
+    if ( NULL == ( mem->ttt_r1 =  (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->dtrz_dz = (double *) malloc( (2*g->ab.np+1)*g->nx2 * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    
+    // for v_t
+    if ( NULL == ( mem->trt_r2 =  (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->dtrt_dr = (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( n>0 ) {
+        if ( NULL == ( mem->ttt_r2 =  (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    } else {
+        mem->ttt_r2 = NULL;
+    }
+    if ( NULL == ( mem->dttz_dz = (double *) malloc( (2*g->ab.np+1)*g->nx2 * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+
+    // for v_z
+    if ( NULL == ( mem->dtzz_dz = (double *) malloc( (2*g->ab.np)*g->nx2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->dtrz_dr = (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->trz_r =   (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( n>0 ) {
+        if ( NULL == ( mem->ttz_r =   (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    } else {
+        mem->ttz_r = NULL;
+    }
+
+    // for \tau_rr, \tau_\theta\theta, \tau_zz
+    if ( NULL == ( mem->dvr_dr =  (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->vr_r1 =   (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( n>0 ) {
+        if ( NULL == ( mem->vt_r1 =   (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    } else {
+        mem->vt_r1 = NULL;
+    }
+    if ( NULL == ( mem->dvz_dz =  (double *) malloc( (2*g->ab.np+1)*g->nx2 * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+
+    // for \tau_rz
+    if ( NULL == ( mem->dvr_dz =  (double *) malloc( (2*g->ab.np)*g->nx2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( NULL == ( mem->dvz_dr =  (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+
+    // for \tau_r\theta
+    if ( NULL == ( mem->dvt_dr =  (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( n>0 ) {
+        if ( NULL == ( mem->vr_r2 =   (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    } else {
+        mem->vr_r2 = NULL;
+    }
+    if ( NULL == ( mem->vt_r2 =   (double *) malloc( (g->ab.np)*g->nz2     * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+
+    // for \tau_\theta z
+    if ( NULL == ( mem->dvt_dz =  (double *) malloc( (2*g->ab.np)*g->nx2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    if ( n>0 ) {
+        if ( NULL == ( mem->vz_r =    (double *) malloc( (g->ab.np+1)*g->nz2   * sizeof(double) ))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+    } else {
+        mem->vz_r = NULL;
+    }
+    
+    for ( size_t nn=0; nn<(g->ab.np)*g->nz2; ++nn ) {
+        mem->dtrr_dr[nn] = mem->trr_r1[nn] =  mem->ttt_r1[nn] = 0.0;
+        mem->dvz_dr[nn]  = mem->dvt_dr[nn] =  mem->vt_r2[nn]  = 0.0;
+        if ( n>0 ) {
+            mem->trt_r1[nn] = mem->vr_r2[nn] = 0.0;
+        }
+    }
+    for ( size_t nn=0; nn<(2*g->ab.np+1)*g->nx2; ++nn ) {
+        mem->dtrz_dz[nn] = mem->dttz_dz[nn] = mem->dvz_dz[nn] = 0.0;
+    }
+    for ( size_t nn=0; nn<(g->ab.np+1)*g->nz2; ++nn ) {
+        mem->trt_r2[nn] = mem->dtrt_dr[nn] = mem->dtrz_dr[nn] = 0.0;
+        mem->trz_r[nn]  = mem->dvr_dr[nn]  = mem->vr_r1[nn]   = 0.0;
+        if ( n>0 ) {
+            mem->ttz_r[nn] = mem->vt_r1[nn] = mem->ttt_r2[nn] = mem->vz_r[nn] = 0.0;
+        }
+    }
+    for ( size_t nn=0; nn<(2*g->ab.np)*g->nx2; ++nn ) {
+        mem->dtzz_dz[nn] = mem->dvr_dz[nn] = mem->dvt_dz[nn] = 0.0;
+    }
+    
+}
+
+void free_cpml_cyl(struct fac_cpml_cyl *fp, struct mem_cpml_cyl *mem) {
+    
+    free( fp->ik_r );
+    free( fp->ik_z );
+    free( fp->ikh_z );
+    free( fp->b_r );
+    free( fp->c_r );
+    free( fp->b_z );
+    free( fp->c_z );
+    free( fp->bh_z );
+    free( fp->ch_z );
+    free( fp->ikH_r );
+    free( fp->ikH_z );
+    free( fp->bH_r );
+    free( fp->cH_r );
+    free( fp->bH_z );
+    free( fp->cH_z );
+
+    free( mem->dtrr_dr );
+    free( mem->trr_r1 );
+    free( mem->trt_r1 );
+    free( mem->ttt_r1 );
+    free( mem->dtrz_dz );
+    free( mem->trt_r2 );
+    free( mem->dtrt_dr );
+    free( mem->ttt_r2 );
+    free( mem->dttz_dz );
+    free( mem->dtzz_dz );
+    free( mem->dtrz_dr );
+    free( mem->trz_r );
+    free( mem->ttz_r );
+    free( mem->dvr_dr );
+    free( mem->vr_r1 );
+    free( mem->vt_r1 );
+    free( mem->dvz_dz );
+    free( mem->dvr_dz );
+    free( mem->dvz_dr );
+    free( mem->dvt_dr );
+    free( mem->vr_r2 );
+    free( mem->vt_r2 );
+    free( mem->dvt_dz );
+    free( mem->vz_r );
+}
+
+
 void compute_cpml(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4,
 				  const struct grid *g, const double dt, const double alpha_max,
 				  const short iwipe) {
@@ -1951,6 +2103,91 @@ void compute_cpml(struct fac_pml *fp1, struct fac_pml *fp23, struct fac_pml *fp4
 		}
 	}
 }
+
+void compute_cpml_cyl(struct fac_cpml_cyl *fp, const struct grid *g,
+                      const double dt, const double alpha_max,
+                      const short iwipe) {
+    double Lx = g->ab.np*g->dx;
+    double Lz = g->ab.np*g->dz;
+    double d0x = -(g->ab.pmlOrder + 1.) * g->ab.vmax * log(g->ab.Rc)/(2.*Lx);
+    double d0z = -(g->ab.pmlOrder + 1.) * g->ab.vmax * log(g->ab.Rc)/(2.*Lz);
+    double da = alpha_max/g->ab.np;
+    double da2 = alpha_max/(g->ab.np+1);
+    
+    
+//    printf("ik_r\tik_z\tikh_z\tb_r\tc_r\tb_z\tc_z\tbh_z\tch_z\n");
+    
+    if ( iwipe ) {
+        for ( size_t n=0; n<g->ab.np; ++n ) {
+            
+            double k_r = 1.+(g->ab.kappa_max-1.) * pow(((g->ab.np-n)*g->dx/Lx), g->ab.pmlOrder);
+            double k_z = 1.+(g->ab.kappa_max-1.) * pow(((g->ab.np-n)*g->dz/Lz), g->ab.pmlOrder);
+            fp->ik_r[n] = 1./k_r;
+            fp->ik_z[n] = 1./k_z;
+            double kh_z = 1.+(g->ab.kappa_max-1.) * pow(((g->ab.np-n-0.5)*g->dx/Lx), g->ab.pmlOrder);
+            fp->ikh_z[n] = 1./kh_z;
+            
+            double d_x = d0x * pow(((g->ab.np-n)*g->dx/Lx), g->ab.pmlOrder);
+            double alpha_x = n*da;
+            
+            fp->b_r[n] = exp(-(d_x/k_r + alpha_x)*dt);
+            fp->c_r[n] = d_x*(fp->b_r[n]-1.) / (k_r*(d_x+k_r*alpha_x));
+            
+            double d_z = d0z * pow(((g->ab.np-n)*g->dz/Lz), g->ab.pmlOrder);
+            double alpha_z = n*da;
+            double dh_z = d0z * pow(((g->ab.np-n-0.5)*g->dz/Lz), g->ab.pmlOrder);
+            double alphah_z = (n+0.5)*da;
+            
+            fp->b_z[n] = exp(-(d_z/k_z + alpha_z)*dt);
+            fp->c_z[n] = d_z*(fp->b_z[n]-1.) / (k_z*(d_z+k_z*alpha_z));
+            fp->bh_z[n] = exp(-(dh_z/kh_z + alphah_z)*dt);
+            fp->ch_z[n] = dh_z*(fp->bh_z[n]-1.) / (kh_z*(dh_z+kh_z*alphah_z));
+    
+//            printf("%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\n", fp->ik_r[n],fp->ik_z[n],fp->ikh_z[n],fp->b_r[n],fp->c_r[n],fp->b_z[n],fp->c_z[n],fp->bh_z[n],fp->ch_z[n]);
+        }
+        
+//        printf("ikH_r\tikH_z\tbH_r\tcH_r\tbH_z\tcH_z\n");
+        for ( size_t n=0; n<g->ab.np+1; ++n ) {
+            
+            double kH_r = 1.+(g->ab.kappa_max-1.) * pow(((n+0.5)*g->dx/Lx), g->ab.pmlOrder);
+            double kH_z = 1.+(g->ab.kappa_max-1.) * pow(((n+0.5)*g->dz/Lz), g->ab.pmlOrder);
+            fp->ikH_r[n] = 1./kH_r;
+            fp->ikH_z[n] = 1./kH_z;
+            
+            double dH_x = d0x * pow(((n+0.5)*g->dx/Lx), g->ab.pmlOrder);
+            double alphaH_x = (g->ab.np-n-0.5)*da2;
+            
+            fp->bH_r[n] = exp(-(dH_x/kH_r + alphaH_x)*dt);
+            fp->cH_r[n] = dH_x*(fp->bH_r[n]-1.) / (kH_r*(dH_x+kH_r*alphaH_x));
+            
+            double dH_z = d0z * pow(((n+0.5)*g->dz/Lz), g->ab.pmlOrder);
+            double alphaH_z = (g->ab.np-n-0.5)*da2;
+            
+            fp->bH_z[n] = exp(-(dH_z/kH_z + alphaH_z)*dt);
+            fp->cH_z[n] = dH_z*(fp->bH_z[n]-1.) / (kH_z*(dH_z+kH_z*alphaH_z));
+            
+//            printf("%e\t%e\t%e\t%e\t%e\t%e\n",fp->ikH_r[n],fp->ikH_z[n],fp->bH_r[n],fp->cH_r[n],fp->bH_z[n],fp->cH_z[n]);
+        }
+    } else {
+        for ( size_t n=0; n<g->ab.np; ++n ) {
+            
+            fp->ik_r[n] = fp->ik_z[n] = fp->ikh_z[n] = 1.;
+            
+            fp->b_r[n] = fp->c_r[n] = 0.;
+            
+            fp->b_z[n] = fp->c_z[n] = fp->bh_z[n] = fp->ch_z[n] = 0.;
+        }
+        for ( size_t n=0; n<g->ab.np+1; ++n ) {
+            
+            fp->ikH_r[n] = fp->ikH_z[n] = 1.;
+            
+            fp->bH_r[n] = fp->cH_r[n] = 0.;
+            
+            fp->bH_z[n] = fp->cH_z[n] = 0.;
+        }
+    }
+}
+
 
 
 /*

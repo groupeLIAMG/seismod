@@ -102,4 +102,47 @@ void update_txz(double *, const double *, const double *, const double *,
 
 void compute_div(double *, const struct grid *, struct fftw_data *);
 void compute_curl(double *, const struct grid *, struct fftw_data *);
+
+void update_vr_cyl(struct variables_cyl *v, const struct grid *g,
+                   struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                   double dt);
+void update_vt_cyl(struct variables_cyl *v, const struct grid *g,
+                   struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                   double dt);
+void update_vz_cyl(struct variables_cyl *v, const struct grid *g,
+                   struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                   double dt);
+
+void update_taa_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt);
+void update_trz_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt);
+void update_trt_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt);
+void update_ttz_cyl(struct variables_cyl *v, const struct grid *g,
+                    struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                    double dt);
+
+void update_vr_cyl_n(struct variables_cyl *v, const struct grid *g,
+                     struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                     double dt, const int n);
+void update_vt_cyl_n(struct variables_cyl *v, const struct grid *g,
+                     struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                     double dt, const int n);
+void update_vz_cyl_n(struct variables_cyl *v, const struct grid *g,
+                     struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                     double dt, const int n);
+
+void update_taa_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n);
+void update_trt_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n);
+void update_ttz_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n);
 #endif
