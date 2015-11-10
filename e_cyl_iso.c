@@ -705,7 +705,7 @@ int main (int argc, char *argv[]) {
                         data = v.tzz;
                         break;
                     case DIV:
-                        compute_div_cyl(div, &g, &v);
+                        compute_div_cyl(div, &g, &v, params.n);
                         data = div;
                         break;
                     case CURL:
@@ -833,7 +833,7 @@ int main (int argc, char *argv[]) {
                         data = v.tzz;
                         break;
                     case DIV:
-                        compute_div_cyl(div, &g, &v);
+                        compute_div_cyl(div, &g, &v, params.n);
                         data = div;
                         break;
                     case CURL:

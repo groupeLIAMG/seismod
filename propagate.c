@@ -4087,11 +4087,13 @@ void update_ttz_cyl_n(struct variables_cyl *v, const struct grid *g,
     }
 }
 
-void compute_div_cyl(double *d, const struct grid *g, const struct variables_cyl *v) {
+void compute_div_cyl(double *d, const struct grid *g, const struct variables_cyl *v, const int n) {
     
+    // evaluated at i+1/2, j+1/2
     for ( size_t i=0; i<g->nx2-1; ++i ) {
         for ( size_t j=0; j<g->nz2-1; ++j ) {
             d[i*g->nz2+j] = ((i+1)*v->vr[(i+1)*g->nz2+j] - i*v->vr[i*g->nz2+j])/(i+0.5) +
+            n*v->vt[i*g->nz2+j]/((i+0.5)*g->dx) + // vt has a dependence in sin(n theta), derivative is n*cos(n theta) evaluated at theta = 0;
             (v->vz[i*g->nz2+j+1] - v->vz[i*g->nz2+j])/g->dz;
         }
     }
@@ -4099,6 +4101,7 @@ void compute_div_cyl(double *d, const struct grid *g, const struct variables_cyl
 
 void compute_curl_cyl(double *c, const struct grid *g, const struct variables_cyl *v, const int n) {
     
+    // evaluated at i,j
     if (n % 2) { /* n is odd */
         size_t i=0;
         for ( size_t j=1; j<g->nz2; ++j ) {

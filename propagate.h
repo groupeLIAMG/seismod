@@ -149,7 +149,7 @@ void update_ttz_cyl_n(struct variables_cyl *v, const struct grid *g,
                       struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
                       double dt, const int n);
 
-void compute_div_cyl(double *, const struct grid *, const struct variables_cyl *);
+void compute_div_cyl(double *, const struct grid *, const struct variables_cyl *, const int);
 void compute_curl_cyl(double *, const struct grid *, const struct variables_cyl *, const int);
 
 #endif
