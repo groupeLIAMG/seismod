@@ -2685,6 +2685,7 @@ void compute_div(double *div, const struct grid *g, struct fftw_data *d) {
         div[n] = d->t1[n] + d->t2[n];
 
 }
+
 void compute_curl(double *curl, const struct grid *g, struct fftw_data *d) {
     // D_z+ v_x
     fftw_execute( d->vx_z_f );
@@ -3317,6 +3318,48 @@ void update_vr_cyl_n(struct variables_cyl *v, const struct grid *g,
     size_t ipmlr = 0;
     size_t ipmlz = 0;
     
+    if (n % 2) { /* n is odd */
+    
+        // anti-symetric
+        size_t i=0;
+        for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bh_z[j]*mem->dtrz_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dtrz_dz[ipmlz];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]- -v->trr[i*g->nz2+j])/g->dx +
+//             (v->trr[i*g->nz2+j]+ -v->trr[i*g->nz2+j])/(2.*i*g->dx) +
+//             n*v->trt[i*g->nz2+j]/(i*g->dx) -
+//             (v->ttt[i*g->nz2+j]+ -v->ttt[i*g->nz2+j])/(2.*i*g->dx) +
+             ddz );
+        }
+        for ( size_t j=Npml; j<g->nz+Npml-1; ++j ) {
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]- -v->trr[i*g->nz2+j])/g->dx +
+//             (v->trr[i*g->nz2+j]+ -v->trr[i*g->nz2+j])/(2.*i*g->dx) +
+//             n*v->trt[i*g->nz2+j]/(i*g->dx) -
+//             (v->ttt[i*g->nz2+j]+ -v->ttt[i*g->nz2+j])/(2.*i*g->dx) +
+             (v->trz[i*g->nz2+j+1]-v->trz[i*g->nz2+j])/g->dz );
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml-1;
+            
+            double ddz = (v->trz[i*g->nz2+j+1] - v->trz[i*g->nz2+j])/g->dz;
+            mem->dtrz_dz[ipmlz] = fp->bH_z[jj]*mem->dtrz_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dtrz_dz[ipmlz];
+            
+            v->vr[i*g->nz2+j] += dt*v->bj[i*g->nz2+j] *
+            ( (v->trr[i*g->nz2+j]- -v->trr[i*g->nz2+j])/g->dx +
+//             (v->trr[i*g->nz2+j]+ -v->trr[i*g->nz2+j])/(2.*i*g->dx) +
+//             n*v->trt[i*g->nz2+j]/(i*g->dx) -
+//             (v->ttt[i*g->nz2+j]+ -v->ttt[i*g->nz2+j])/(2.*i*g->dx) +
+             ddz );
+        }
+    }
+    
     for ( size_t i=1; i<g->nx; ++i ) {
         for ( size_t j=0; j<Npml; ++j, ++ipmlz ) {
             
@@ -3801,6 +3844,117 @@ void update_taa_cyl_n(struct variables_cyl *v, const struct grid *g,
     }
 }
 
+void update_trz_cyl_n(struct variables_cyl *v, const struct grid *g,
+                      struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
+                      double dt, const int n) {
+    
+    const size_t Npml = g->ab.np;
+    
+    size_t ipmlr = 0;
+    size_t ipmlz = 0;
+    
+    if (n % 2) { /* n is odd */
+        
+        // anti-symetric
+        size_t i=0;
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bh_z[j]*mem->dvr_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dvr_dz[ipmlz];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + (v->vz[i*g->nz2+j]- -v->vz[i*g->nz2+j])/g->dx);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            ((v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz +
+             (v->vz[i*g->nz2+j]- -v->vz[i*g->nz2+j])/g->dx);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bH_z[jj]*mem->dvr_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dvr_dz[ipmlz];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + (v->vz[i*g->nz2+j]- -v->vz[i*g->nz2+j])/g->dx);
+        }
+    }
+    
+
+    for ( size_t i=1; i<g->nx; ++i ) {
+        
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz ) {
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bh_z[j]*mem->dvr_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dvr_dz[ipmlz];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j ) {
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            ((v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz +
+             (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bH_z[jj]*mem->dvr_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dvr_dz[ipmlz];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx);
+        }
+    }
+    for ( size_t ii=0; ii<Npml; ++ii ) {
+        size_t i = ii+g->nx;
+        
+        for ( size_t j=1; j<Npml; ++j, ++ipmlz, ++ipmlr ) {
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bh_z[j]*mem->dvr_dz[ipmlz] + fp->ch_z[j]*ddz;
+            ddz = fp->ikh_z[j]*ddz + mem->dvr_dz[ipmlz];
+            
+            double ddr = (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+            mem->dvz_dr[ipmlr] = fp->bH_r[ii]*mem->dvz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dvz_dr[ipmlr];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + ddr);
+        }
+        for ( size_t j=Npml; j<g->nz+Npml; ++j, ++ipmlr ) {
+            
+            double ddr = (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+            mem->dvz_dr[ipmlr] = fp->bH_r[ii]*mem->dvz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dvz_dr[ipmlr];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            ((v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz + ddr);
+        }
+        for ( size_t jj=0; jj<Npml; ++jj, ++ipmlz, ++ipmlr ) {
+            
+            size_t j = jj+g->nz+Npml;
+            
+            double ddz = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz;
+            mem->dvr_dz[ipmlz] = fp->bH_z[jj]*mem->dvr_dz[ipmlz] + fp->cH_z[jj]*ddz;
+            ddz = fp->ikH_z[jj]*ddz + mem->dvr_dz[ipmlz];
+            
+            double ddr = (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+            mem->dvz_dr[ipmlr] = fp->bH_r[ii]*mem->dvz_dr[ipmlr] + fp->cH_r[ii]*ddr;
+            ddr = fp->ikH_r[ii]*ddr + mem->dvz_dr[ipmlr];
+            
+            v->trz[i*g->nz2+j] += dt*v->mu[i*g->nz2+j] *
+            (ddz + ddr);
+        }
+    }
+}
+
+
 void update_trt_cyl_n(struct variables_cyl *v, const struct grid *g,
                       struct mem_cpml_cyl *mem, const struct fac_cpml_cyl *fp,
                       double dt, const int n) {
@@ -3808,6 +3962,19 @@ void update_trt_cyl_n(struct variables_cyl *v, const struct grid *g,
     const size_t Npml = g->ab.np;
     
     size_t ipmlr = 0;
+    
+    if (n % 2) { /* n is odd */
+
+        // anti-symetric
+        size_t i=0;
+        for ( size_t j=0; j<g->nz2; ++j ) {
+            
+            v->trt[i*g->nz2+j] += dt*v->muj[i*g->nz2+j]*
+            ( (v->vt[i*g->nz2+j]- -v->vt[i*g->nz2+j])/g->dx );//-
+//             n*v->vr[i*g->nz2+j]/(i*g->dx) -
+//             (v->vt[i*g->nz2+j]+v->vt[(i-1)*g->nz2+j])/(2.*i*g->dx));
+        }
+    }
     
     for ( size_t i=1; i<g->nx; ++i ) {
         for ( size_t j=0; j<g->nz2; ++j ) {
@@ -3919,3 +4086,31 @@ void update_ttz_cyl_n(struct variables_cyl *v, const struct grid *g,
         }
     }
 }
+
+void compute_div_cyl(double *d, const struct grid *g, const struct variables_cyl *v) {
+    
+    for ( size_t i=0; i<g->nx2-1; ++i ) {
+        for ( size_t j=0; j<g->nz2-1; ++j ) {
+            d[i*g->nz2+j] = ((i+1)*v->vr[(i+1)*g->nz2+j] - i*v->vr[i*g->nz2+j])/(i+0.5) +
+            (v->vz[i*g->nz2+j+1] - v->vz[i*g->nz2+j])/g->dz;
+        }
+    }
+}
+
+void compute_curl_cyl(double *c, const struct grid *g, const struct variables_cyl *v, const int n) {
+    
+    if (n % 2) { /* n is odd */
+        size_t i=0;
+        for ( size_t j=1; j<g->nz2; ++j ) {
+            c[i*g->nz2+j] = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz -
+            (v->vz[i*g->nz2+j]- -v->vz[i*g->nz2+j])/g->dx;
+        }
+    }
+    for ( size_t i=1; i<g->nx2; ++i ) {
+        for ( size_t j=1; j<g->nz2; ++j ) {
+            c[i*g->nz2+j] = (v->vr[i*g->nz2+j]-v->vr[i*g->nz2+j-1])/g->dz -
+            (v->vz[i*g->nz2+j]-v->vz[(i-1)*g->nz2+j])/g->dx;
+        }
+    }
+}
+

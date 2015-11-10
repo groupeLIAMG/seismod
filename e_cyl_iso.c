@@ -204,7 +204,8 @@ Snapshot       <- type of 2nd record\n\
 Give 0.0 or less for just one snapshot at time given above.\n\
 --- end of file ---\n\
 \n\
-Admissible components are Vr, Vtheta, Vz, trr, trtheta, trz, tthetatheta, tthetaz, tzz\n\
+Admissible components are Vr, Vtheta, Vz, trr, trtheta, trz, tthetatheta, tthetaz, tzz, div, curl\n\
+(div and curl are divergence and curl of particle velocity)\n\
 \n\
 Trace files are ascii files and snapshots are binary grid files in netCDF format\n\
 (COARDS-compliant).\n\
@@ -500,22 +501,6 @@ int main (int argc, char *argv[]) {
     } else {
         compute_src_fct(&src, params.dt, 1.0);
     }
-
-    //
-    // CPML stuff
-    //
-    if ( verbose ) fprintf(stdout, "done.\nApplying PML absorbing boundaries (%zd layers) ", g.ab.np);
-    struct mem_cpml_cyl mem;
-    struct fac_cpml_cyl fp;
-    alloc_cpml_cyl(&fp, &mem, &g, params.n);
-    const double pi = 4.0*atan(1.0);
-    double alpha_max = pi*src.s[0].f;
-    if ( g.ab.alpha_max == 0 ) alpha_max = 0.0;
-    compute_cpml_cyl(&fp, &g, params.dt, alpha_max, params.iwipe);
-    
-    //
-    // Read in output params
-    //
     if ( verbose ) {
         fprintf(stdout, "done.\n");
         if ( verbose > 1 ) {
@@ -535,6 +520,24 @@ int main (int argc, char *argv[]) {
                 fprintf(stdout, "    %zd - coordinates:\t(%lg, %lg)\n", ns+1, src.s[ns].x, src.s[ns].z);
             }
         }
+    }
+    
+    //
+    // CPML stuff
+    //
+    if ( verbose ) fprintf(stdout, "done.\nApplying PML absorbing boundaries (%zd layers) ", g.ab.np);
+    struct mem_cpml_cyl mem;
+    struct fac_cpml_cyl fp;
+    alloc_cpml_cyl(&fp, &mem, &g, params.n);
+    const double pi = 4.0*atan(1.0);
+    double alpha_max = pi*src.s[0].f;
+    if ( g.ab.alpha_max == 0 ) alpha_max = 0.0;
+    compute_cpml_cyl(&fp, &g, params.dt, alpha_max, params.iwipe);
+    
+    //
+    // Read in output params
+    //
+    if ( verbose ) {
         fprintf(stdout, "Reading output parameters ... ");
         fflush(stdout);
     }
@@ -566,6 +569,18 @@ int main (int argc, char *argv[]) {
             }
         }
         fflush(stdout);
+    }
+    double *div=NULL;
+    double *curl=NULL;
+    for ( size_t nr=0; nr<out.nrec; ++nr ) {
+        if (out.r[nr].comp == DIV) {
+            if ( NULL == ( div = (double *)malloc(nnodes*sizeof(double))))   { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+            for (size_t n=0; n<nnodes; ++n) { div[n] = 0.0; }
+        }
+        else if (out.r[nr].comp == CURL) {
+            if ( NULL == ( curl = (double *)malloc(nnodes*sizeof(double))))   { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
+            for (size_t n=0; n<nnodes; ++n) { curl[n] = 0.0; }
+        }
     }
     
     for (size_t n=0; n<nnodes; ++n) {
@@ -689,6 +704,14 @@ int main (int argc, char *argv[]) {
                     case TZZ:
                         data = v.tzz;
                         break;
+                    case DIV:
+                        compute_div_cyl(div, &g, &v);
+                        data = div;
+                        break;
+                    case CURL:
+                        compute_curl_cyl(curl, &g, &v, params.n);
+                        data = curl;
+                        break;
                     default:
                         break;
                 }
@@ -808,6 +831,14 @@ int main (int argc, char *argv[]) {
                         break;
                     case TZZ:
                         data = v.tzz;
+                        break;
+                    case DIV:
+                        compute_div_cyl(div, &g, &v);
+                        data = div;
+                        break;
+                    case CURL:
+                        compute_curl_cyl(curl, &g, &v, params.n);
+                        data = curl;
                         break;
                     default:
                         break;
