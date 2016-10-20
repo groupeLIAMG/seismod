@@ -1,7 +1,7 @@
 /*
  *  e_iso.c
  *
- * Elastic wave propagation in 2D isotropic media, on a staggered grid
+ * Elastic wave propagation in 2D isotropic media, on a staggered grid 
  *
  *  Code specs:  - language: ANSI C99
  *               - compiled with intel compiler 11.1 on a mac running OSX 10.6
