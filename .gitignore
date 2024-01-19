@@ -1,0 +1,7 @@
+*.o
+Makefile.*
+bin/
+xcshareddata/
+*.xcscheme
+*.xcbkptlist
+*.pbxproj

@@ -109,7 +109,7 @@ char *parFormat =
 "Format of parameter file:\n\
 \n\
 One line per parameter, first word is the value of the parameter,\n\
-next is a keyword comprise between a # and a comma, and a comment\n\
+next is a keyword comprised between a # and a comma, and a comment\n\
 can be added after the comma, i.e we have on each line\n\n\
 value     # keyword, optional comment\n\n\
 Example showing available keywords:\n\

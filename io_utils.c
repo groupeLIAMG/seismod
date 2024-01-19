@@ -988,6 +988,7 @@ void read_model_e_cyl(const char filename[], const struct grid *g, double *vp,
                 exit(1);
             }
         }
+        i = 0;
     }
     fclose(fid);
     
@@ -1438,7 +1439,10 @@ void read_source(const char filename[], const struct grid *g, struct sourceParam
     }
 
 	fscanf(fid, "%zd", &(src->nsrc));
-	fscanf(fid, "%zd", &(src->nTemplate));
+	int nread = fscanf(fid, "%zd", &(src->nTemplate));
+    if ( nread == 0 ) {
+        src->nTemplate = 1;
+    }
 	if ( NULL == ( src->s = (struct source *) malloc(src->nsrc*src->nTemplate*sizeof(struct source)))) { fprintf(stderr, "Error: cannot allocate memory\n"); abort(); }
 
 	char t[50];

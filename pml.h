@@ -32,6 +32,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __pml_H__
+#define __pml_H__
+
 
 #include <stdlib.h>
 
@@ -79,3 +82,5 @@ void compute_cpml_cyl(struct fac_cpml_cyl *fp, const struct grid *g,
 
 double quick_select(double arr[], size_t n);
 void pml_median_average( double *data, const struct grid *g );
+
+#endif

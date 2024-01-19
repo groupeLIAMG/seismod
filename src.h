@@ -32,6 +32,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#ifndef __src_H__
+#define __src_H__
 
 #include "structs.h"
 
@@ -51,3 +53,5 @@ void compute_kurkjian(struct sourceParams *s, const struct variables_cyl *v,
                       const struct grid *g, const double dt, const int n);
 void add_kurkjian_src(const struct sourceParams *s, struct variables_cyl *v,
                       const double dt, const size_t it);
+
+#endif
